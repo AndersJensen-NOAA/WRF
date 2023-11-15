@@ -5233,7 +5233,7 @@
       m = 2
 
       ! in WRF, water is 2
-      if (lsm_in .ge. 1.5) then       ! water
+      if (xland_in .ge. 1.5) then       ! water
          lower_lim_nuc_frac = 0.15
       else
          lower_lim_nuc_frac = 0.      ! land

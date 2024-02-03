@@ -65,6 +65,7 @@ SUBROUTINE microphysics_driver(                                          &
                       ,qvoli_curr,qaoli_curr                             & ! for Jensen ISHMAEL
                       ,qvoli2_curr,qaoli2_curr                           & ! for Jensen ISHMAEL
                       ,qi3_curr,qni3_curr,qvoli3_curr,qaoli3_curr        & ! for Jensen ISHMAEL
+                      ,qaprog_curr                                       &
                       ,effr_curr,ice_effr_curr,tot_effr_curr             &
                       ,qic_effr_curr,qip_effr_curr,qid_effr_curr         &             
                       ,f_qv,f_qc,f_qr,f_qi,f_qs,f_qg,f_qndrop,f_qni      &
@@ -78,6 +79,7 @@ SUBROUTINE microphysics_driver(                                          &
                       ,f_qvoli,f_qaoli                                   & ! for Jensen ISHMAEL
                       ,f_qvoli2,f_qaoli2                                 & ! for Jensen ISHMAEL
                       ,f_qi3,f_qni3,f_qvoli3,f_qaoli3                    & ! for Jensen ISHMAEL
+                      ,f_qaprog                                          &
                       ,f_effr,f_ice_effr,f_tot_effr                      &
                       ,f_qic_effr,f_qip_effr,f_qid_effr                  &                 
                       ,cu_used                                           &
@@ -638,6 +640,7 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  ,qvoli_curr,qaoli_curr                           & ! for Jensen ISHMAEL
                  ,qvoli2_curr,qaoli2_curr                         & ! for Jensen ISHMAEL
                  ,qi3_curr,qni3_curr,qvoli3_curr,qaoli3_curr      & ! for Jensen ISHMAEL
+                 ,qaprog_curr                                     &
                  ,effr_curr,ice_effr_curr,tot_effr_curr           &
                  ,qic_effr_curr,qip_effr_curr,qid_effr_curr           &
                  ,kext_ql,kext_qs,kext_qg          &
@@ -721,7 +724,7 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                        ,f_qvoli,f_qaoli                                      & ! for Jensen ISHMAEL
                        ,f_qvoli2,f_qaoli2                                    & ! for Jensen ISHMAEL
                        ,f_qi3,f_qni3,f_qvoli3,f_qaoli3                       & ! for Jensen ISHMAEL
-                       ,f_qnwfa, f_qnifa, f_qnbca                         ! Added by G. Thompson
+                       ,f_qnwfa, f_qnifa, f_qnbca, f_qaprog                    ! Added by G. Thompson
 
 
    LOGICAL, OPTIONAL, INTENT(IN) :: diagflag
@@ -1041,6 +1044,7 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                   PRESENT( QNC_CURR) .AND. PRESENT ( QNWFA_CURR) .AND.  &
                   PRESENT( QNIFA_CURR).AND.PRESENT ( QNWFA2D)    .AND.  &
                   PRESENT( QNIFA2D)                              .AND.  &
+                  PRESENT( QAPROG_CURR)                          .AND.  &
                   PRESENT( SNOWNC)   .AND. PRESENT ( SNOWNCV)    .AND.  &
                   PRESENT( GRAUPELNC).AND. PRESENT ( GRAUPELNCV) .AND.  &
                   PRESENT( RAINNC  ) .AND. PRESENT ( RAINNCV ) ) THEN
@@ -1053,6 +1057,7 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
              CALL mp_gt_driver(                          &
                      QV=qv_curr,                         &
                      QC=qc_curr,                         &
+                     QAPROG=qaprog_curr,                 &
                      QR=qr_curr,                         &
                      QI=qi_curr,                         &
                      QS=qs_curr,                         &
@@ -1134,6 +1139,7 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                   PRESENT( QNC_CURR) .AND. PRESENT ( QNWFA_CURR) .AND.  &
                   PRESENT( QNIFA_CURR).AND.PRESENT ( QNWFA2D)    .AND.  &
                   PRESENT( QNIFA2D)                              .AND.  &
+                  PRESENT( QAPROG_CURR)                          .AND.  &
                   PRESENT( SNOWNC)   .AND. PRESENT ( SNOWNCV)    .AND.  &
                   PRESENT( GRAUPELNC).AND. PRESENT ( GRAUPELNCV) .AND.  &
                   PRESENT( RAINNC  ) .AND. PRESENT ( RAINNCV ) ) THEN
@@ -1146,6 +1152,7 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
              CALL mp_gt_driver(                          &
                      QV=qv_curr,                         &
                      QC=qc_curr,                         &
+                     QAPROG=qaprog_curr,                 &
                      QR=qr_curr,                         &
                      QI=qi_curr,                         &
                      QS=qs_curr,                         &
@@ -1205,6 +1212,7 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                   PRESENT( QR_CURR ) .AND. PRESENT ( QI_CURR ) .AND.  &
                   PRESENT( QS_CURR ) .AND. PRESENT ( QG_CURR ) .AND.  &
                   PRESENT( QNR_CURR) .AND. PRESENT ( QNI_CURR) .AND.  &
+                  PRESENT( QAPROG_CURR)                          .AND.  &
 !                  PRESENT( SNOWNC) .AND. PRESENT ( SNOWNCV) .AND.        &
 !                  PRESENT( GRAUPELNC) .AND. PRESENT ( GRAUPELNCV) .AND.  &
                   PRESENT( RAINNC  ) .AND. PRESENT ( RAINNCV ) ) THEN
@@ -1230,6 +1238,7 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
              CALL mp_gt_driver(                          &
                      QV=qv_curr,                         &
                      QC=qc_curr,                         &
+                     QAPROG=qaprog_curr,                 &
                      QR=qr_curr,                         &
                      QI=qi_curr,                         &
                      QS=qs_curr,                         &

@@ -48,6 +48,7 @@
       MODULE module_mp_thompson
 
       USE module_wrf_error
+      USE module_mp_cloud_fraction, only : subgrid_scale_ice_clouds
       USE module_mp_radar
 #if ( defined( DM_PARALLEL ) && ( ! defined( STUBMPI ) ) )
       USE module_dm, ONLY : wrf_dm_max_real
@@ -1067,7 +1068,7 @@
 !+---+-----------------------------------------------------------------+
 !..This is a wrapper routine designed to transfer values from 3D to 1D.
 !+---+-----------------------------------------------------------------+
-      SUBROUTINE mp_gt_driver(qv, qc, qr, qi, qs, qg, qb, ni, nr, nc, ng,&
+      SUBROUTINE mp_gt_driver(qv, qc, qaprog, qr, qi, qs, qg, qb, ni, nr, nc, ng,&
                               nwfa, nifa, nbca, nwfa2d, nifa2d, nbca2d,  &
                               aer_init_opt, wif_input_opt,               &
                               th, pii, p, w, dz,                         &
@@ -1092,7 +1093,7 @@
                             ims,ime, jms,jme, kms,kme, &
                             its,ite, jts,jte, kts,kte
       REAL, DIMENSION(ims:ime, kms:kme, jms:jme), INTENT(INOUT):: &
-                          qv, qc, qr, qi, qs, qg, ni, nr, th
+                          qv, qc, qaprog, qr, qi, qs, qg, ni, nr, th
       REAL, DIMENSION(ims:ime, kms:kme, jms:jme), OPTIONAL, INTENT(INOUT):: &
                           nc, nwfa, nifa, nbca, qb, ng
       REAL, DIMENSION(ims:ime, jms:jme), OPTIONAL, INTENT(IN):: nwfa2d, nifa2d, &
@@ -1121,7 +1122,7 @@
 
 !..Local variables
       REAL, DIMENSION(kts:kte):: &
-                          qv1d, qc1d, qi1d, qr1d, qs1d, qg1d, qb1d,     &
+                          qv1d, qc1d, qaprog1d, qi1d, qr1d, qs1d, qg1d, qb1d,     &
                           ni1d, nr1d, nc1d, ng1d, nwfa1d, nifa1d, nbca1d,&
                           t1d, p1d, w1d, dz1d, rho, dBZ
       REAL, DIMENSION(kts:kte):: re_qc1d, re_qi1d, re_qs1d
@@ -1225,6 +1226,7 @@
             dz1d(k) = dz(i,k,j)
             qv1d(k) = qv(i,k,j)
             qc1d(k) = qc(i,k,j)
+            qaprog1d(k) = qaprog(i,k,j)
             qi1d(k) = qi(i,k,j)
             qr1d(k) = qr(i,k,j)
             qs1d(k) = qs(i,k,j)
@@ -1283,7 +1285,7 @@
          endif
 
          call mp_thompson(aer_init_opt, wif_input_opt, &
-                          qv1d, qc1d, qi1d, qr1d, qs1d, qg1d, qb1d, ni1d,     &
+                          qv1d, qc1d, qaprog1d, qi1d, qr1d, qs1d, qg1d, qb1d, ni1d,     &
                           nr1d, nc1d, ng1d, nwfa1d, nifa1d, nbca1d, t1d, p1d, w1d, dz1d,  &
                       pptrain, pptsnow, pptgraul, pptice, &
 #if ( WRF_CHEM == 1 )
@@ -1349,6 +1351,7 @@
          do k = kts, kte
             qv(i,k,j) = qv1d(k)
             qc(i,k,j) = qc1d(k)
+            qaprog(i,k,j) = qaprog1d(k)
             qi(i,k,j) = qi1d(k)
             qr(i,k,j) = qr1d(k)
             qs(i,k,j) = qs1d(k)
@@ -1511,7 +1514,7 @@
 !+---+-----------------------------------------------------------------+
 !
       subroutine mp_thompson (aer_init_opt, wif_input_opt, &
-                          qv1d, qc1d, qi1d, qr1d, qs1d, qg1d, qb1d,       &
+                          qv1d, qc1d, qaprog1d, qi1d, qr1d, qs1d, qg1d, qb1d,       &
                           ni1d, nr1d, nc1d, ng1d, nwfa1d, nifa1d, nbca1d, &
                           t1d, p1d, w1d, dzq,                             &
                           pptrain, pptsnow, pptgraul, pptice, &
@@ -1526,7 +1529,7 @@
       INTEGER, OPTIONAL, INTENT(IN):: aer_init_opt, wif_input_opt
       INTEGER, INTENT(IN):: kts, kte, ii, jj
       REAL, DIMENSION(kts:kte), INTENT(INOUT):: &
-                          qv1d, qc1d, qi1d, qr1d, qs1d, qg1d, qb1d,     &
+                          qv1d, qc1d, qaprog1d, qi1d, qr1d, qs1d, qg1d, qb1d,     &
                           ni1d, nr1d, nc1d, ng1d, nwfa1d, nifa1d, nbca1d, t1d
       REAL, DIMENSION(kts:kte), INTENT(IN):: p1d, w1d, dzq
       REAL, INTENT(INOUT):: pptrain, pptsnow, pptgraul, pptice
@@ -1629,7 +1632,7 @@
       INTEGER, DIMENSION(kts:kte):: idx_bg
 
       LOGICAL:: melti, no_micro
-      LOGICAL, DIMENSION(kts:kte):: L_qc, L_qi, L_qr, L_qs, L_qg
+      LOGICAL, DIMENSION(kts:kte):: L_qc, L_qi, L_qr, L_qs, L_qg, no_micro_grid
       LOGICAL:: debug_flag
       CHARACTER*256:: mp_debug
       INTEGER:: nu_c
@@ -1800,6 +1803,25 @@
          qv(k) = MAX(1.E-10, qv1d(k))
          pres(k) = p1d(k)
          rho(k) = 0.622*pres(k)/(R*temp(k)*(qv(k)+0.622))
+         no_micro_grid(k) = .true.
+
+         ! BOUNDS                                                                                                                                                       
+         if (qaprog1d(k) .gt. 1.0) then
+            qaprog1d(k) = 1.0
+         endif
+
+         if (qaprog1d(k) .lt. 0.05) then
+            if (qi1d(k) .gt. R1) then
+               qaprog1d(k) = 0.05
+            else
+               qaprog1d(k) = 0.0
+            endif
+         endif
+
+         if (qaprog1d(k) .ge. 0.05) then
+            qi1d(k) = qi1d(k) / qaprog1d(k)
+         endif
+      
          if (is_aerosol_aware) then
             if (aer_init_opt .lt. 2) then  ! Constant or climatology (e.g., GOCART)
                nwfa(k) = MAX(11.1E6, MIN(9999.E6, nwfa1d(k)*rho(k)))
@@ -1826,6 +1848,7 @@
 
          if (qc1d(k) .gt. R1) then
             no_micro = .false.
+            no_micro_grid(k) = .false.
             rc(k) = qc1d(k)*rho(k)
             nc(k) = MAX(2., MIN(nc1d(k)*rho(k), Nt_c_max))
             L_qc(k) = .true.
@@ -1850,6 +1873,7 @@
 
          if (qi1d(k) .gt. R1) then
             no_micro = .false.
+            no_micro_grid(k) = .false.
             ri(k) = qi1d(k)*rho(k)
             ni(k) = MAX(R2, ni1d(k)*rho(k))
             if (ni(k).le. R2) then
@@ -1868,6 +1892,7 @@
              ni(k) = cig(1)*oig2*ri(k)/am_i*lami**bm_i
             endif
          else
+            qaprog1d(k) = 0.0
             qi1d(k) = 0.0
             ni1d(k) = 0.0
             ri(k) = R1
@@ -1877,6 +1902,7 @@
 
          if (qr1d(k) .gt. R1) then
             no_micro = .false.
+            no_micro_grid(k) = .false.
             rr(k) = qr1d(k)*rho(k)
             nr(k) = MAX(R2, nr1d(k)*rho(k))
             if (nr(k).le. R2) then
@@ -1905,6 +1931,7 @@
          endif
          if (qs1d(k) .gt. R1) then
             no_micro = .false.
+            no_micro_grid(k) = .false.
             rs(k) = qs1d(k)*rho(k)
             L_qs(k) = .true.
          else
@@ -1914,6 +1941,7 @@
          endif
          if (qg1d(k) .gt. R1) then
             no_micro = .false.
+            no_micro_grid(k) = .false.
             L_qg(k) = .true.
             rg(k) = qg1d(k)*rho(k)
             ng(k) = MAX(R2, ng1d(k)*rho(k))
@@ -1987,7 +2015,11 @@
          ssati(k) = sati(k) - 1.
          if (abs(ssatw(k)).lt. eps) ssatw(k) = 0.0
          if (abs(ssati(k)).lt. eps) ssati(k) = 0.0
-         if (no_micro .and. ssati(k).gt. 0.0) no_micro = .false.
+!         if (no_micro .and. ssati(k).gt. 0.0) no_micro = .false.
+         if (no_micro .and. ssati(k).gt. 0.0) then
+            no_micro = .false.
+            no_micro_grid(k) = .false.
+         endif
          diffu(k) = 2.11E-5*(temp(k)/273.15)**1.94 * (101325./pres(k))
          if (tempc .ge. 0.0) then
             visco(k) = (1.718+0.0049*tempc)*1.0E-5
@@ -2016,7 +2048,43 @@
 !..If no existing hydrometeor species and no chance to initiate ice or
 !.. condense cloud water, just exit quickly!
 !+---+-----------------------------------------------------------------+
+      call subgrid_scale_ice_clouds(kts, kte, dtsave, rho, pres, lsub, ocp, qvsi, w1d, &
+           no_micro_grid, qaprog1d, qv, ri, ni, temp)
 
+!        call simple_clouds(kts, kte, qv, rho, pres, lvap, lsub, ocp, temp, qvs, qaprog1d, rc, nc, &
+!          qvsi, ri, ni, w1d, dtsave, no_micro_grid)
+
+      do k = kts, kte
+
+       ! Did simple clouds make ice?
+        if (ri(k) .gt. R1) then
+            no_micro = .false.
+            ni(k) = max(R2, ni1d(k)*rho(k))
+            if (ni(k).le. R2) then
+               lami = cie(2)/5.E-6
+               ni(k) = min(4999.d3, cig(1)*oig2*ri(k)/am_i*lami**bm_i)
+            endif
+            L_qi(k) = .true.
+            lami = (am_i*cig(2)*oig1*ni(k)/ri(k))**obmi
+            ilami = 1./lami
+            xDi = (bm_i + mu_i + 1.) * ilami
+            if (xDi.lt. 5.E-6) then
+               lami = cie(2)/5.E-6
+               ni(k) = min(4999.d3, cig(1)*oig2*ri(k)/am_i*lami**bm_i)
+            elseif (xDi.gt. 300.E-6) then
+               lami = cie(2)/300.E-6
+               ni(k) = cig(1)*oig2*ri(k)/am_i*lami**bm_i
+            endif
+         else
+            qi1d(k) = 0.0
+            ni1d(k) = 0.0
+            ri(k) = R1
+            ni(k) = R2
+            L_qi(k) = .false.
+            qaprog1d(k) = 0.0
+         endif
+      enddo
+         
       if (no_micro) return
 
 !+---+-----------------------------------------------------------------+
@@ -2618,7 +2686,9 @@
 !..Deposition nucleation of dust/mineral from DeMott et al (2010)
 !.. we may need to relax the temperature and ssati constraints.
           if ( (ssati(k).ge. 0.25) .or. (ssatw(k).gt. eps &
-                                .and. temp(k).lt.253.15) ) then
+               .and. temp(k).lt.253.15) ) then
+!!             qaprog1d(k) = 1.0
+             
            if (dustyIce .AND. is_aerosol_aware) then
             xnc = iceDeMott(tempc,qv(k),qvs(k),qvsi(k),rho(k),nifa(k))
            else
@@ -2653,17 +2723,28 @@
                   *oig1*cig(5)*ni(k)*ilami
 
            if (pri_ide(k) .lt. 0.0) then
-            pri_ide(k) = MAX(DBLE(-ri(k)*odts), pri_ide(k), DBLE(rate_max))
-            pni_ide(k) = pri_ide(k)*oxmi
-            pni_ide(k) = MAX(DBLE(-ni(k)*odts), pni_ide(k))
+              ! Only sublimate if there is something in the grid
+              if (.not. no_micro_grid(k)) then
+                 pri_ide(k) = MAX(DBLE(-ri(k)*odts), pri_ide(k), DBLE(rate_max))
+                 pni_ide(k) = pri_ide(k)*oxmi
+                 pni_ide(k) = MAX(DBLE(-ni(k)*odts), pni_ide(k))
+              else
+                 pri_ide(k) = 0.0
+                 pni_ide(k) = 0.0
+              endif
            else
             pri_ide(k) = MIN(pri_ide(k), DBLE(rate_max))
             prs_ide(k) = (1.0D0-tpi_ide(idx_i,idx_i1))*pri_ide(k)
             pri_ide(k) = tpi_ide(idx_i,idx_i1)*pri_ide(k)
-           endif
+            ! If grid-scale saturation cloud fraction = 1
+            if (ssati(k) .gt. 0.0 .and. pri_ide(k) .gt. R1) then
+               qaprog1d(k) = 1.0
+            endif
+         endif
 
 !..Some cloud ice needs to move into the snow category.  Use lookup
 !.. table that resulted from explicit bin representation of distrib.
+           if (.not. no_micro_grid(k)) then
            if ( (idx_i.eq. ntb_i) .or. (xDi.gt. 5.0*D0s) ) then
             prs_iau(k) = ri(k)*.99*odts
             pni_iau(k) = ni(k)*.95*odts
@@ -2675,9 +2756,10 @@
             prs_iau(k) = MIN(DBLE(ri(k)*.99*odts), prs_iau(k))
             pni_iau(k) = tni_iaus(idx_i,idx_i1)*odts
             pni_iau(k) = MIN(DBLE(ni(k)*.95*odts), pni_iau(k))
-           endif
+         endif
+      endif
           endif
-
+   
 !..Deposition/sublimation of snow/graupel follows Srivastava & Coen
 !.. (1992).
           if (L_qs(k)) then
@@ -3863,7 +3945,9 @@
                                            *odzq*DT*onstep(2))
             ni(k) = MAX(R2, ni(k) + (sed_n(k+1)-sed_n(k)) &
                                            *odzq*DT*onstep(2))
-         enddo
+            qaprog1d(k) = max(qaprog1d(k+1), qaprog1d(k))
+      
+      enddo
 
          if (ri(kts).gt.R1*1000.) &
          pptice = pptice + sed_i(kts)*DT*onstep(2)
@@ -3890,7 +3974,8 @@
                                                *odzq*onstep(3)*orho
             rs(k) = MAX(R1, rs(k) + (sed_s(k+1)-sed_s(k)) &
                                            *odzq*DT*onstep(3))
-         enddo
+            qaprog1d(k) = max(qaprog1d(k+1), qaprog1d(k))
+        enddo
 
          if (rs(kts).gt.R1*1000.) &
          pptsnow = pptsnow + sed_s(kts)*DT*onstep(3)
@@ -3974,6 +4059,25 @@
          qv1d(k) = MAX(1.E-10, qv1d(k) + qvten(k)*DT)
          qc1d(k) = qc1d(k) + qcten(k)*DT
          nc1d(k) = MAX(2./rho(k), MIN(nc1d(k) + ncten(k)*DT, Nt_c_max))
+
+         ! BOUNDS                                                                                                                                                     
+         if (qaprog1d(k) .gt. 1.0) then
+            qaprog1d(k) = 1.0
+         endif
+         
+         if (qaprog1d(k) .lt. 0.05) then
+            if(qi1d(k) .gt. R1) then
+               qaprog1d(k) = 0.05
+            else
+               qaprog1d(k) = 0.0
+            endif
+         endif
+
+         ! DEFINE output grid mean                                                                                                                                    
+         if (qaprog1d(k) .ge. 0.05) then
+            qi1d(k) = qi1d(k) * qaprog1d(k)
+         endif
+         
          if (is_aerosol_aware) then
             if (aer_init_opt .lt. 2) then
                nwfa1d(k) = MAX(11.1E6, MIN(9999.E6,                           &
@@ -4023,6 +4127,7 @@
          qi1d(k) = qi1d(k) + qiten(k)*DT
          ni1d(k) = MAX(R2/rho(k), ni1d(k) + niten(k)*DT)
          if (qi1d(k) .le. R1) then
+           qaprog1d(k) = 0.0
            qi1d(k) = 0.0
            ni1d(k) = 0.0
          else

@@ -367,6 +367,7 @@ module_mp_milbrandt2mom.o : ../frame/module_wrf_error.o \
 		../share/module_model_constants.o
 
 module_mp_thompson.o : ../frame/module_wrf_error.o \
+		module_mp_cloud_fraction.o \
 		module_mp_radar.o
 
 module_mp_nssl_2mom.o : ../frame/module_wrf_error.o \

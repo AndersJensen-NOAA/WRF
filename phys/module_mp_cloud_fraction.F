@@ -32,9 +32,10 @@ contains
     real :: dqs_ls(kts:kte), tmp1(kts:kte), tmp2(kts:kte), A_dt(kts:kte)
     real :: qa0(kts:kte), qaeq(kts:kte), qa1(kts:kte), qabar(kts:kte), da_ls(kts:kte)
     real :: cooling_terms(kts:kte)
-    real :: term1, term2, term3, term4, sink, ratio
+    real :: term1, term2, term3, term4, sink, ratio, pressure_threshold
     logical :: do_subgrid_clouds(kts:kte)
 
+      pressure_threshold = 40000.
       do k = kts, kte
        dcond_ls(k) = 0.
        qa_tend(k) = 0.
@@ -59,7 +60,7 @@ contains
 !       endif
           
        if(qa(k) .lt. 1.0 .and. temp(k) .le. 253.15 .and. temp(k) .ge. 233.15 &
-            .and. U(k) .ge. U00(k) .and. pres(k) .lt. 70000.) then
+            .and. U(k) .ge. U00(k) .and. pres(k) .lt. pressure_threshold) then
           do_subgrid_clouds(k) = .true.
        endif
 

@@ -1804,7 +1804,8 @@
          pres(k) = p1d(k)
          rho(k) = 0.622*pres(k)/(R*temp(k)*(qv(k)+0.622))
          no_micro_grid(k) = .true.
-
+!!          qaprog1d(k) = 1.0
+         
          ! Bound cloud fraction
          ! Cloud fraction can't be greater than 1
          if (qaprog1d(k) .gt. 1.0) then
@@ -1824,6 +1825,7 @@
          ! Convert to in-cloud value at beginning of microphysics
          if (qaprog1d(k) .ge. 0.05) then
             qi1d(k) = qi1d(k) / qaprog1d(k)
+            ni1d(k) = ni1d(k) / qaprog1d(k)
          endif
       
          if (is_aerosol_aware) then
@@ -4076,11 +4078,6 @@
             endif
          endif
 
-         ! Convert to grid-mean value for advection
-         if (qaprog1d(k) .ge. 0.05) then
-            qi1d(k) = qi1d(k) * qaprog1d(k)
-         endif
-         
          if (is_aerosol_aware) then
             if (aer_init_opt .lt. 2) then
                nwfa1d(k) = MAX(11.1E6, MIN(9999.E6,                           &
@@ -4129,6 +4126,13 @@
 
          qi1d(k) = qi1d(k) + qiten(k)*DT
          ni1d(k) = MAX(R2/rho(k), ni1d(k) + niten(k)*DT)
+
+         ! Convert to grid-mean value for advection
+         if (qaprog1d(k) .ge. 0.05) then
+            qi1d(k) = qi1d(k) * qaprog1d(k)
+            ni1d(k) = ni1d(k) * qaprog1d(k)
+         endif
+
          if (qi1d(k) .le. R1) then
            qaprog1d(k) = 0.0
            qi1d(k) = 0.0

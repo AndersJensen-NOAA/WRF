@@ -44,16 +44,21 @@ contains
        dqsdT(k) = lsub * qvsi(k) / (rvgas*temp(k)**2)
        gamm(k) = dqsdT(k) * lsub  * ocp(k)
        U(k) = qv(k) / qvsi(k)
-       U00(k) = 0.95
+       U00(k) = 0.85
        omega(k) = -grav * w1d(k) * rho(k)
 
        ! Conditions to create sub-grid-scale clouds
        ! Currently hardcoded and arbitary for testing:
-       !.. No explicit microphysics in grid
+       !.. Cloud fraction less than 1
        !.. Temperature between -20 and -40 C
-       !.. RH with respect to ice > 90%
+       !.. RH with respect to ice > 85%
        !.. Pressure < 700 hPa
-       if(no_micro_grid(k) .and. temp(k) .le. 253.15 .and. temp(k) .ge. 233.15 &
+!       if(no_micro_grid(k) .and. temp(k) .le. 253.15 .and. temp(k) .ge. 233.15 &
+!            .and. U(k) .ge. U00(k) .and. pres(k) .lt. 70000.) then
+!          do_subgrid_clouds(k) = .true.
+!       endif
+          
+       if(qa(k) .lt. 1.0 .and. temp(k) .le. 253.15 .and. temp(k) .ge. 233.15 &
             .and. U(k) .ge. U00(k) .and. pres(k) .lt. 70000.) then
           do_subgrid_clouds(k) = .true.
        endif
@@ -70,7 +75,7 @@ contains
              qa(k) = max(qa(k), 0.05)
           endif
           ! Currently only have large scale ascent
-          ! Need to add convective, radiative, turbulent terms
+          ! Need to add convective, radiative, turbulent cooling terms
           cooling_terms(k) = (omega(k)/rho(k)*ocp(k)) * dqsdT(k) * dt
 
           ! Need net cooling and cloud fraction < 1 for this to work
@@ -113,16 +118,17 @@ contains
              qabar(k) = qa(k)
           endif
           
-          ! Add tendencies where doing subgrid clouds                                                                                                                   
+          ! Add tendencies for sub-grid clouds
           qa_tend(k) = (qa1(k)-qa0(k)) / dt
           dcond_ls(k) = -1.0 * qabar(k) * dqs_ls(k)
           sink = dcond_ls(k)
           
-          ! Limit loss of condensation based on available cloud water                                                                   
+          ! Limit loss of cloud ice based on available cloud ice
           if (-1.0*dcond_ls(k)*dt .gt. ri(k)) then
              dcond_ls(k) = -ri(k)/dt
           endif
 
+          ! Don't over consume vapor, limit vapor consumption to 90% total vapor
           ratio = 1.0
           if (dcond_ls(k)*dt .gt. 0.9*qv(k)) then
              dcond_ls(k) = 0.9 * qv(k) / dt
@@ -130,9 +136,10 @@ contains
           endif
 
           ! Update the state
+          ! Currently assume ice particles nucleate at (arbitrary) 50 microns size 
           qa(k) = qa(k) + qa_tend(k)*dt*ratio
           ri(k) = ri(k) + dcond_ls(k)*dt
-          ni(k) = ni(k) + ((dcond_ls(k)*dt) / (3.14159*890./6.*((100.e-6)**3.0)))
+          ni(k) = ni(k) + ((dcond_ls(k)*dt) / (3.14159*890./6.*((50.e-6)**3.0)))
           qv(k) = qv(k) - dcond_ls(k)*dt
           temp(k) = temp(k) + lsub*ocp(k)*dcond_ls(k)*dt
 

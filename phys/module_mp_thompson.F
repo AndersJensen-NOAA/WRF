@@ -1805,11 +1805,14 @@
          rho(k) = 0.622*pres(k)/(R*temp(k)*(qv(k)+0.622))
          no_micro_grid(k) = .true.
 
-         ! BOUNDS                                                                                                                                                       
+         ! Bound cloud fraction
+         ! Cloud fraction can't be greater than 1
          if (qaprog1d(k) .gt. 1.0) then
             qaprog1d(k) = 1.0
          endif
 
+         ! Currently low-limit for cloud fraction is 5%
+         ! For cloud ice mass > 1.e-12
          if (qaprog1d(k) .lt. 0.05) then
             if (qi1d(k) .gt. R1) then
                qaprog1d(k) = 0.05
@@ -1818,6 +1821,7 @@
             endif
          endif
 
+         ! Convert to in-cloud value at beginning of microphysics
          if (qaprog1d(k) .ge. 0.05) then
             qi1d(k) = qi1d(k) / qaprog1d(k)
          endif
@@ -2048,15 +2052,14 @@
 !..If no existing hydrometeor species and no chance to initiate ice or
 !.. condense cloud water, just exit quickly!
 !+---+-----------------------------------------------------------------+
+
+      ! Call subgrid cloud scheme right before `if (no_micro) return`
       call subgrid_scale_ice_clouds(kts, kte, dtsave, rho, pres, lsub, ocp, qvsi, w1d, &
            no_micro_grid, qaprog1d, qv, ri, ni, temp)
 
-!        call simple_clouds(kts, kte, qv, rho, pres, lvap, lsub, ocp, temp, qvs, qaprog1d, rc, nc, &
-!          qvsi, ri, ni, w1d, dtsave, no_micro_grid)
-
+      ! If we made subgrid ice clouds, we need to check that
+      ! ice number concentration is is bounds and set no_micro to false
       do k = kts, kte
-
-       ! Did simple clouds make ice?
         if (ri(k) .gt. R1) then
             no_micro = .false.
             ni(k) = max(R2, ni1d(k)*rho(k))
@@ -2687,8 +2690,6 @@
 !.. we may need to relax the temperature and ssati constraints.
           if ( (ssati(k).ge. 0.25) .or. (ssatw(k).gt. eps &
                .and. temp(k).lt.253.15) ) then
-!!             qaprog1d(k) = 1.0
-             
            if (dustyIce .AND. is_aerosol_aware) then
             xnc = iceDeMott(tempc,qv(k),qvs(k),qvsi(k),rho(k),nifa(k))
            else
@@ -2723,8 +2724,9 @@
                   *oig1*cig(5)*ni(k)*ilami
 
            if (pri_ide(k) .lt. 0.0) then
-              ! Only sublimate if there is something in the grid
-              if (.not. no_micro_grid(k)) then
+              ! Only sublimate if there is explicit ice
+              ! if (.not. no_micro_grid(k)) then
+              if (qaprog1d(k) .gt. 0.99) then
                  pri_ide(k) = MAX(DBLE(-ri(k)*odts), pri_ide(k), DBLE(rate_max))
                  pni_ide(k) = pri_ide(k)*oxmi
                  pni_ide(k) = MAX(DBLE(-ni(k)*odts), pni_ide(k))
@@ -2736,7 +2738,7 @@
             pri_ide(k) = MIN(pri_ide(k), DBLE(rate_max))
             prs_ide(k) = (1.0D0-tpi_ide(idx_i,idx_i1))*pri_ide(k)
             pri_ide(k) = tpi_ide(idx_i,idx_i1)*pri_ide(k)
-            ! If grid-scale saturation cloud fraction = 1
+            ! If grid-scale saturation and deposition, cloud fraction = 1
             if (ssati(k) .gt. 0.0 .and. pri_ide(k) .gt. R1) then
                qaprog1d(k) = 1.0
             endif
@@ -2744,7 +2746,6 @@
 
 !..Some cloud ice needs to move into the snow category.  Use lookup
 !.. table that resulted from explicit bin representation of distrib.
-           if (.not. no_micro_grid(k)) then
            if ( (idx_i.eq. ntb_i) .or. (xDi.gt. 5.0*D0s) ) then
             prs_iau(k) = ri(k)*.99*odts
             pni_iau(k) = ni(k)*.95*odts
@@ -2758,7 +2759,6 @@
             pni_iau(k) = MIN(DBLE(ni(k)*.95*odts), pni_iau(k))
          endif
       endif
-          endif
    
 !..Deposition/sublimation of snow/graupel follows Srivastava & Coen
 !.. (1992).
@@ -4060,11 +4060,14 @@
          qc1d(k) = qc1d(k) + qcten(k)*DT
          nc1d(k) = MAX(2./rho(k), MIN(nc1d(k) + ncten(k)*DT, Nt_c_max))
 
-         ! BOUNDS                                                                                                                                                     
+         ! Bound cloud fraction
+         ! Cloud fraction can't be greater than 1                     
          if (qaprog1d(k) .gt. 1.0) then
             qaprog1d(k) = 1.0
          endif
-         
+
+         ! Currently low-limit for cloud fraction is 5%
+         ! For cloud ice mass > 1.e-12
          if (qaprog1d(k) .lt. 0.05) then
             if(qi1d(k) .gt. R1) then
                qaprog1d(k) = 0.05
@@ -4073,7 +4076,7 @@
             endif
          endif
 
-         ! DEFINE output grid mean                                                                                                                                    
+         ! Convert to grid-mean value for advection
          if (qaprog1d(k) .ge. 0.05) then
             qi1d(k) = qi1d(k) * qaprog1d(k)
          endif
